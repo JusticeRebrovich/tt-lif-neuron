@@ -27,8 +27,13 @@ module tb ();
   wire VGND = 1'b0;
 `endif
 
+`ifndef GL_TEST
+  // Expose the neuron's membrane voltage so test_lif.py can read dut.v
+  wire [7:0] v = user_project.v;
+`endif
+
   // Replace tt_um_example with your module name:
-  tt_um_example user_project (
+  tt_um_justice_lif user_project (
 
       // Include power ports for the Gate Level test:
 `ifdef GL_TEST

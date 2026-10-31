@@ -25,6 +25,17 @@ async def setup(dut):
     return LifModel()
 
 
+def read_v(dut):
+    """Return (v, mask) for comparing V against the model.
+    RTL sim can see the internal register dut.v, so all 8 bits are checked.
+    The gate-level netlist has no dut.v, so rebuild bits 7:1 from uo_out and
+    mask out bit 0, which is not wired to any output pin."""
+    try:
+        return int(dut.v.value), 0xFF
+    except AttributeError:
+        return (int(dut.uo_out.value) >> 1) << 1, 0xFE
+
+
 async def pulse_reset(dut, model):
     """Assert reset for one cycle, then release it with input 0.
     The release edge is stepped in the model too, so DUT and model never drift."""
@@ -34,13 +45,15 @@ async def pulse_reset(dut, model):
     model.reset()
     await RisingEdge(dut.clk)
     await ReadOnly()
-    assert int(dut.v.value) == 0 and (int(dut.uo_out.value) & 1) == 0, "reset did not clear state"
+    v, mask = read_v(dut)
+    assert v & mask == 0 and (int(dut.uo_out.value) & 1) == 0, "reset did not clear state"
     await FallingEdge(dut.clk)
     dut.rst_n.value = 1
     model.step(0)
     await RisingEdge(dut.clk)
     await ReadOnly()
-    assert int(dut.v.value) == model.v
+    v, mask = read_v(dut)
+    assert v & mask == model.v & mask
 
 
 async def drive(dut, model, i):
@@ -50,12 +63,13 @@ async def drive(dut, model, i):
     model.step(i)
     await RisingEdge(dut.clk)
     await ReadOnly()
-    dut_v = int(dut.v.value)
+    dut_v, mask = read_v(dut)
     dut_spike = int(dut.uo_out.value) & 1
-    assert dut_v == model.v, f"V mismatch: DUT {dut_v}, model {model.v} (input {i})"
+    assert dut_v & mask == model.v & mask, f"V mismatch: DUT {dut_v}, model {model.v} (input {i})"
     assert dut_spike == model.spike, f"spike mismatch: DUT {dut_spike}, model {model.spike}"
-    assert (int(dut.uo_out.value) >> 1) == (dut_v >> 1), "uo_out[7:1] must show V[7:1]"
-    return dut_v, dut_spike
+    assert (int(dut.uo_out.value) >> 1) == (model.v >> 1), "uo_out[7:1] must show V[7:1]"
+    # model.v equals the DUT's V in RTL sim, and also covers bit 0 in gate-level sim
+    return model.v, dut_spike
 
 
 @cocotb.test()

@@ -6,7 +6,7 @@ import random
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import FallingEdge, ReadOnly, RisingEdge
+from cocotb.triggers import FallingEdge, ReadOnly, RisingEdge, Timer
 
 from lif_model import LifModel
 
@@ -36,6 +36,16 @@ def read_v(dut):
         return (int(dut.uo_out.value) >> 1) << 1, 0xFE
 
 
+async def sample_after_edge(dut):
+    """Wait for the rising edge, then let the outputs settle before reading.
+    The gate-level sim gives every gate a 1 ns delay, so flip-flop outputs
+    change just after the edge. 2 ns is still well before the falling edge,
+    where the inputs change, and makes no difference in RTL sim."""
+    await RisingEdge(dut.clk)
+    await Timer(2, unit="ns")
+    await ReadOnly()
+
+
 async def pulse_reset(dut, model):
     """Assert reset for one cycle, then release it with input 0.
     The release edge is stepped in the model too, so DUT and model never drift."""
@@ -43,15 +53,13 @@ async def pulse_reset(dut, model):
     dut.rst_n.value = 0
     dut.ui_in.value = 0
     model.reset()
-    await RisingEdge(dut.clk)
-    await ReadOnly()
+    await sample_after_edge(dut)
     v, mask = read_v(dut)
     assert v & mask == 0 and (int(dut.uo_out.value) & 1) == 0, "reset did not clear state"
     await FallingEdge(dut.clk)
     dut.rst_n.value = 1
     model.step(0)
-    await RisingEdge(dut.clk)
-    await ReadOnly()
+    await sample_after_edge(dut)
     v, mask = read_v(dut)
     assert v & mask == model.v & mask
 
@@ -61,8 +69,7 @@ async def drive(dut, model, i):
     await FallingEdge(dut.clk)
     dut.ui_in.value = i
     model.step(i)
-    await RisingEdge(dut.clk)
-    await ReadOnly()
+    await sample_after_edge(dut)
     dut_v, mask = read_v(dut)
     dut_spike = int(dut.uo_out.value) & 1
     assert dut_v & mask == model.v & mask, f"V mismatch: DUT {dut_v}, model {model.v} (input {i})"

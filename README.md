@@ -1,42 +1,71 @@
 ![](../../workflows/gds/badge.svg) ![](../../workflows/docs/badge.svg) ![](../../workflows/test/badge.svg) ![](../../workflows/fpga/badge.svg)
 
-# Tiny Tapeout Verilog Project Template
+# LIF Neuron: a digital leaky integrate-and-fire neuron in silicon
 
-- [Read the documentation for project](docs/info.md)
+A small digital leaky integrate-and-fire (LIF) neuron written in Verilog and taken through the open-source
+[Tiny Tapeout](https://tinytapeout.com) flow (SkyWater 130 nm, LibreLane) to a hardened GDS layout.
 
-## What is Tiny Tapeout?
+- **Top module:** `tt_um_justice_lif` (1x1 tile, 10 MHz target clock)
+- **Source:** [`src/tt_um_justice_lif.v`](src/tt_um_justice_lif.v)
+- **Datasheet and pin list:** [`docs/info.md`](docs/info.md)
 
-Tiny Tapeout is an educational project that aims to make it easier and cheaper than ever to get your digital and analog designs manufactured on a real chip.
+## What it does
 
-To learn more and get started, visit https://tinytapeout.com.
+An 8-bit membrane voltage `V` updates every clock:
 
-## Set up your Verilog project
+```
+V_next = V - leak + I        leak = V >> 4, forced to at least 1 while V > 0
+```
 
-1. Add your Verilog files to the `src` folder.
-2. Edit the [info.yaml](info.yaml) and update information about your project, paying special attention to the `source_files` and `top_module` properties. If you are upgrading an existing Tiny Tapeout project, check out our [online info.yaml migration tool](https://tinytapeout.github.io/tt-yaml-upgrade-tool/).
-3. Edit [docs/info.md](docs/info.md) and add a description of your project.
-4. Adapt the testbench to your design. See [test/README.md](test/README.md) for more information.
+| Behavior | Implementation |
+| --- | --- |
+| Integrate | 8-bit input current on `ui[7:0]` is added to `V` each cycle |
+| Leak | `V >> 4` (a shift, so no multiplier), never less than 1, so `V` always decays to 0 |
+| Saturate | The add clamps at 255 instead of wrapping |
+| Fire | One-cycle spike on `uo[0]` when `V` reaches the threshold (200), then `V` resets to 0 |
+| Refractory | Input is ignored for 4 cycles after a spike |
 
-The GitHub action will automatically build the ASIC files using [LibreLane](https://www.zerotoasiccourse.com/terminology/librelane/).
+Threshold, leak shift and refractory length are Verilog parameters (`THRESHOLD`, `LEAK_SHIFT`, `REFRAC`).
 
-## Enable GitHub actions to build the results page
+## Pinout
 
-- [Enabling GitHub Pages](https://tinytapeout.com/faq/#my-github-action-is-failing-on-the-pages-part)
+| Pins | Function |
+| --- | --- |
+| `ui[7:0]` | Input current `I` |
+| `uo[0]` | Spike |
+| `uo[7:1]` | Membrane voltage `V[7:1]` |
+| `uio[7:0]` | Unused |
 
-## Resources
+## Verification
 
-- [FAQ](https://tinytapeout.com/faq/)
-- [Digital design lessons](https://tinytapeout.com/digital_design/)
-- [Learn how semiconductors work](https://tinytapeout.com/siliwiz/)
-- [Join the community](https://tinytapeout.com/discord)
-- [Build your design locally](https://www.tinytapeout.com/guides/local-hardening/)
+The design is checked cycle by cycle against a Python golden model ([`test/lif_model.py`](test/lif_model.py))
+with [cocotb](https://www.cocotb.org). The same tests run on the RTL and on the gate-level netlist after
+synthesis. To run the RTL simulation locally:
 
-## What next?
+```bash
+cd test
+make -B
+```
 
-- [Submit your design to the next shuttle](https://app.tinytapeout.com/).
-- Edit [this README](README.md) and explain your design, how it works, and how to test it.
-- Share your project on your social network of choice:
-  - LinkedIn [#tinytapeout](https://www.linkedin.com/search/results/content/?keywords=%23tinytapeout) [@TinyTapeout](https://www.linkedin.com/company/100708654/)
-  - Mastodon [#tinytapeout](https://chaos.social/tags/tinytapeout) [@matthewvenn](https://chaos.social/@matthewvenn)
-  - X (formerly Twitter) [#tinytapeout](https://twitter.com/hashtag/tinytapeout) [@tinytapeout](https://twitter.com/tinytapeout)
-  - Bluesky [@tinytapeout.com](https://bsky.app/profile/tinytapeout.com)
+## Implementation results
+
+From the GitHub Actions build (`gds` workflow):
+
+- 149 standard cells, about 8.3% utilization of the 1x1 tile
+- Gate-level simulation passes
+- 15/15 Tiny Tapeout precheck items pass
+
+## Repository layout
+
+```
+src/        Verilog source and LibreLane config
+test/       cocotb testbench, golden model, gate-level runner
+docs/       Datasheet (info.md) used by the Tiny Tapeout project page
+info.yaml   Tiny Tapeout project metadata and pinout
+```
+
+## About
+
+Written by Justice Rebrovich (University of North Dakota, B.S. Electrical Engineering) as a hands-on
+introduction to digital IC design and design verification. Built from the
+[Tiny Tapeout Verilog template](https://github.com/TinyTapeout/ttsky-verilog-template). Licensed under Apache-2.0.

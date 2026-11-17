@@ -8,4 +8,4 @@ SRC = HERE.parent / "src" / "tt_um_justice_lif.v"
 
 runner = get_runner("icarus")
 runner.build(sources=[SRC], hdl_toplevel="tt_um_justice_lif", build_dir=HERE / "sim_build", always=True)
-runner.test(hdl_toplevel="tt_um_justice_lif", test_module="test_lif", test_dir=HERE, build_dir=HERE / "sim_build")
+runner.test(hdl_toplevel="tt_um_justice_lif", test_module=["test_lif", "test_ring"], test_dir=HERE, build_dir=HERE / "sim_build")

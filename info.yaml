@@ -3,7 +3,7 @@ project:
   title:        "LIF Spiking Pattern Generator"      # Project title
   author:       "Justice Rebrovich"      # Your name
   discord:      ""      # Your discord username, for communication and automatically assigning you a Tapeout role (optional)
-  description:  "Four leaky integrate-and-fire neurons in a ring that produce travelling or self-sustaining spike patterns"      # One line description of what your project does
+  description:  "Four leaky integrate-and-fire neurons in a ring that produce spike patterns, with a built-in self-test"      # One line description of what your project does
   language:     "Verilog" # other examples include SystemVerilog, Amaranth, VHDL, etc
   clock_hz:     10000000       # Clock frequency in Hz (or 0 if not applicable)
 
@@ -33,21 +33,21 @@ pinout:
   ui[7]: "I7 (neuron 0 input current bit 7)"
 
   # Outputs
-  uo[0]: "SPIKE0 (neuron 0 spike)"
-  uo[1]: "V1 (neuron 0 membrane voltage bit 1)"
-  uo[2]: "V2"
-  uo[3]: "V3"
-  uo[4]: "V4"
-  uo[5]: "V5"
-  uo[6]: "V6"
-  uo[7]: "V7 (neuron 0 membrane voltage MSB)"
+  uo[0]: "SPIKE0 (neuron 0 spike), or BIST DONE in self-test"
+  uo[1]: "V1 (neuron 0 membrane voltage bit 1), or BIST PASS in self-test"
+  uo[2]: "V2, or signature bit in self-test"
+  uo[3]: "V3, or signature bit in self-test"
+  uo[4]: "V4, or signature bit in self-test"
+  uo[5]: "V5, or signature bit in self-test"
+  uo[6]: "V6, or signature bit in self-test"
+  uo[7]: "V7 (neuron 0 membrane voltage MSB), or signature bit in self-test"
 
   # Bidirectional pins
   uio[0]: "W0 (input: ring weight select bit 0)"
   uio[1]: "W1 (input: ring weight select bit 1)"
   uio[2]: "MODE (input: 0 = refractory 4, 1 = refractory 3)"
-  uio[3]: ""
-  uio[4]: ""
+  uio[3]: "BIST (input: 1 = run the built-in self-test)"
+  uio[4]: "PAGE (input: with BIST = 1, show the signature high byte on uo)"
   uio[5]: "SPIKE1 (output: neuron 1 spike)"
   uio[6]: "SPIKE2 (output: neuron 2 spike)"
   uio[7]: "SPIKE3 (output: neuron 3 spike)"

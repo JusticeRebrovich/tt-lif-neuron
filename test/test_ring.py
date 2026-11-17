@@ -51,12 +51,12 @@ async def ring_setup(dut):
 
 async def step(dut, model, i, w_sel, mode=0, junk=0, ena=1):
     """Apply one cycle of input i, weight select w_sel and refractory mode, step the model, compare.
-    junk goes on the unused uio_in[7:3]; ena and junk must not change anything."""
+    junk goes on the unused uio_in[7:5]; ena and junk must not change anything."""
     await FallingEdge(dut.clk)
     dut.rst_n.value = 1
     dut.ena.value = ena
     dut.ui_in.value = i
-    dut.uio_in.value = w_sel | (mode << 2) | (junk << 3)
+    dut.uio_in.value = w_sel | (mode << 2) | (junk << 5)
     model.step(i, w_sel, mode)
     await sample_after_edge(dut)
     return check(dut, model, f"(input {i}, w_sel {w_sel}, mode {mode})")
@@ -142,6 +142,20 @@ async def test_self_sustaining_in_mode_1(dut):
 
 
 @cocotb.test()
+async def test_input_adds_to_ring_kick(dut):
+    """Neuron 0's current is ui_in PLUS the kick from neuron 3 (a real adder, up to 510)."""
+    model = await ring_setup(dut)
+    for ui, w_sel in [(64, 1), (100, 1), (128, 2), (60, 2), (255, 3), (1, 3)]:
+        await reset_cycle(dut, model)
+        await step(dut, model, 255, 3, mode=1)            # neuron 0 fires
+        while not model.spikes[3]:                        # let the spike reach neuron 3
+            await step(dut, model, 0, 3, mode=1)
+        await step(dut, model, ui, w_sel, mode=1)         # kick and input land together
+        for _ in range(8):
+            await step(dut, model, 0, w_sel, mode=1)
+
+
+@cocotb.test()
 async def test_random_ring_vs_model(dut):
     """5,000 cycles of random input, weight, mode, ena and junk on unused pins, with occasional resets."""
     rng = random.Random(2026)
@@ -157,7 +171,7 @@ async def test_random_ring_vs_model(dut):
         elif r < 0.07:
             mode = rng.randrange(2)
         i = rng.choice([0, 0, rng.randrange(256), rng.randrange(64)])
-        spikes = await step(dut, model, i, w_sel, mode, junk=rng.randrange(32), ena=rng.randrange(2))
+        spikes = await step(dut, model, i, w_sel, mode, junk=rng.randrange(8), ena=rng.randrange(2))
         total = [a + b for a, b in zip(total, spikes)]
     dut._log.info(f"random ring run: spikes per neuron {total}, all cycles matched the model")
     assert all(t > 0 for t in total), f"every neuron should have fired at least once, got {total}"

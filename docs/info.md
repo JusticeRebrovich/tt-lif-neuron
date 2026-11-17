@@ -39,8 +39,25 @@ The kick weight is chosen with `uio[1:0]`:
 while it is still refractory, so each wave makes one pass and the input sets the rhythm. With `MODE = 1` (3 cycles)
 and weight 255, a single spike keeps circulating with a period of 4 clocks and no further input.
 
-`rst_n` is an active-low reset that clears every neuron. The design is checked in simulation against a Python golden
-model, cycle by cycle, using cocotb.
+### Built-in self-test
+
+Setting `BIST` (`uio[3]`) to 1 makes the chip test itself. It resets the neurons, then for 1024 clocks an on-chip
+pseudo-random generator (an 8-bit LFSR) drives neuron 0 while a counter steps through every weight and both refractory
+modes. A 16-bit signature register (MISR) folds in all four spikes and the top bits of neuron 0's voltage on every
+clock. At the end the signature is compared with the value a healthy design produces (`0x55C4`, taken from the Python
+golden model).
+
+While `BIST` is 1 the `uo` pins show the result instead of neuron 0:
+
+| `uio[4:3]` | `uo[7:0]` |
+| --- | --- |
+| 00 | Neuron 0: `V[7:1]` on `uo[7:1]`, spike on `uo[0]` |
+| 01 | Self-test: `uo[0]` = DONE, `uo[1]` = PASS, `uo[7:2]` = signature bits 5:0 |
+| 11 | Self-test: signature bits 15:8 |
+| 10 | Reserved, reads 0 |
+
+`rst_n` is an active-low reset that clears every neuron and the self-test. The design is checked in simulation
+against a Python golden model, cycle by cycle, using cocotb.
 
 ## How to test
 
@@ -52,6 +69,10 @@ model, cycle by cycle, using cocotb.
 4. **Rate division:** set `uio[1:0] = 2`. Neuron 1 (`uio[5]`) fires less often than neuron 0.
 5. **Self-sustaining oscillator:** set `uio[2:0] = 7`, apply `ui[7:0] = 255` for one clock, then 0. A spike keeps
    circulating: each of the four spike pins pulses once every 4 clocks. Clear `uio[2]` and it stops.
+
+6. **Self-test:** set `uio[4:3] = 01` and run the clock for at least 1026 cycles. `uo[0]` (DONE) goes high, and
+   `uo[1]` (PASS) is high on a working chip, so `uo[1:0]` reads 3. Set `uio[4:3]` back to 00 to return to normal
+   operation.
 
 Slow the clock down to see the pattern on LEDs.
 

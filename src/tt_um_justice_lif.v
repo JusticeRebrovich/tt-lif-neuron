@@ -82,11 +82,26 @@ endmodule
 //      refractory, so each wave makes one pass and the input sets the rhythm.
 //   1: 3 cycles. The kick arrives just after neuron 0 recovers, so at weight
 //      255 a single spike keeps circulating: a self-sustaining oscillator.
+//
+// Built-in self-test (uio_in[3] = 1):
+//   The first clock resets the neurons. Then, for BIST_LEN clocks, an LFSR
+//   drives neuron 0 while a counter steps through every weight and both
+//   refractory modes, and a signature register (MISR) folds in the spikes and
+//   V0[7:4]. Afterwards DONE is set, and PASS is set if the signature equals
+//   BIST_GOLDEN, the value the Python golden model produces.
+//
+// uo_out pages (uio_in[4:3]):
+//   00: {V0[7:1], spike0}                        normal operation
+//   01: {signature[5:0], PASS, DONE}             self-test status
+//   11: signature[15:8]                          self-test signature, high byte
+//   10: 0                                        reserved
 // ---------------------------------------------------------------------------
-module tt_um_justice_lif (
+module tt_um_justice_lif #(
+    parameter [7:0] THRESHOLD = 8'd200   // firing threshold of every neuron
+) (
     input  wire [7:0] ui_in,    // input current I to neuron 0
-    output wire [7:0] uo_out,   // [0] = neuron 0 spike, [7:1] = top 7 bits of its V
-    input  wire [7:0] uio_in,   // [1:0] = ring weight select, [2] = refractory mode
+    output wire [7:0] uo_out,   // selected by uio_in[4:3], see the page table above
+    input  wire [7:0] uio_in,   // [1:0] weight select, [2] refractory mode, [3] BIST, [4] page
     output wire [7:0] uio_out,  // [7:5] = spikes of neurons 3, 2, 1
     output wire [7:0] uio_oe,   // [7:5] outputs, the rest inputs
     input  wire       ena,      // high when this design is selected
@@ -94,18 +109,60 @@ module tt_um_justice_lif (
     input  wire       rst_n     // active-low reset
 );
 
+    localparam [10:0] BIST_LEN    = 11'd1024;    // clocks of stimulus
+    localparam [15:0] BIST_GOLDEN = 16'h55C4;    // signature of a healthy chip (test/chip_model.py)
+
+    wire bist_en  = uio_in[3];
+    wire page_alt = uio_in[4];
+
+    wire [7:0] v0, v1, v2, v3;
+    wire       s0, s1, s2, s3;
+
+    // ---- built-in self-test: stimulus generator, counter and signature ----
+    reg [10:0] bist_cnt;   // 0 = neurons in reset, 1..BIST_LEN = running, BIST_LEN+1 = done
+    reg [7:0]  lfsr;       // pseudo-random stimulus, x^8 + x^6 + x^5 + x^4 + 1
+    reg [15:0] misr;       // signature, x^16 + x^12 + x^5 + 1
+
+    wire bist_start = bist_en && (bist_cnt == 11'd0);
+    wire bist_done  = (bist_cnt == BIST_LEN + 11'd1);
+    wire bist_pass  = bist_done && (misr == BIST_GOLDEN);
+
+    wire        lfsr_fb   = lfsr[7] ^ lfsr[5] ^ lfsr[4] ^ lfsr[3];
+    wire [7:0]  misr_in   = {v0[7:4], s3, s2, s1, s0};
+    wire [15:0] misr_next = {misr[14:0], 1'b0} ^ (misr[15] ? 16'h1021 : 16'h0000) ^ {8'h00, misr_in};
+
+    always @(posedge clk) begin
+        if (!rst_n || !bist_en) begin
+            bist_cnt <= 11'd0;
+            lfsr     <= 8'h01;
+            misr     <= 16'h0000;
+        end else if (bist_cnt == 11'd0) begin
+            bist_cnt <= 11'd1;                  // the neurons are reset on this clock
+        end else if (!bist_done) begin
+            lfsr     <= {lfsr[6:0], lfsr_fb};
+            misr     <= misr_next;
+            bist_cnt <= bist_cnt + 11'd1;
+        end
+    end
+
+    // What the self-test feeds the ring: small and large currents alternate
+    // every 64 clocks, the mode every 128, the weight every 256.
+    wire [7:0] bist_i = bist_cnt[6] ? lfsr : {3'b000, lfsr[4:0]};
+
+    // ---- the ring's inputs come from the pins, or from the self-test ----
+    wire [7:0] i_ext   = bist_en ? bist_i        : ui_in;
+    wire [1:0] w_sel   = bist_en ? bist_cnt[9:8] : uio_in[1:0];
+    wire       mode    = bist_en ? bist_cnt[7]   : uio_in[2];
+    wire       n_rst_n = rst_n && !bist_start;   // the self-test starts from reset neurons
+
     // ---- ring weight: how hard one spike kicks the next neuron ----
-    wire [1:0] w_sel = uio_in[1:0];
     wire [7:0] w     = (w_sel == 2'd0) ? 8'd0   :   // ring off
                        (w_sel == 2'd1) ? 8'd64  :
                        (w_sel == 2'd2) ? 8'd128 :
                                          8'd255;    // one kick is enough to fire
 
     // ---- refractory mode: 4 cycles (input-paced) or 3 (self-sustaining) ----
-    wire [2:0] refrac = uio_in[2] ? 3'd3 : 3'd4;
-
-    wire [7:0] v0, v1, v2, v3;
-    wire       s0, s1, s2, s3;
+    wire [2:0] refrac = mode ? 3'd3 : 3'd4;
 
     // A spike is registered, so its kick lands one clock after the spike.
     wire [7:0] kick0 = s3 ? w : 8'd0;
@@ -114,24 +171,28 @@ module tt_um_justice_lif (
     wire [7:0] kick3 = s2 ? w : 8'd0;
 
     // Neuron 0 gets the external input plus the kick that closes the ring.
-    wire signed [9:0] i0 = $signed({2'b00, ui_in}) + $signed({2'b00, kick0});
+    wire signed [9:0] i0 = $signed({2'b00, i_ext}) + $signed({2'b00, kick0});
     wire signed [9:0] i1 = $signed({2'b00, kick1});
     wire signed [9:0] i2 = $signed({2'b00, kick2});
     wire signed [9:0] i3 = $signed({2'b00, kick3});
 
-    lif_neuron n0 (.clk(clk), .rst_n(rst_n), .refrac(refrac), .i_in(i0), .v(v0), .spike(s0));
-    lif_neuron n1 (.clk(clk), .rst_n(rst_n), .refrac(refrac), .i_in(i1), .v(v1), .spike(s1));
-    lif_neuron n2 (.clk(clk), .rst_n(rst_n), .refrac(refrac), .i_in(i2), .v(v2), .spike(s2));
-    lif_neuron n3 (.clk(clk), .rst_n(rst_n), .refrac(refrac), .i_in(i3), .v(v3), .spike(s3));
+    lif_neuron #(.THRESHOLD(THRESHOLD)) n0 (.clk(clk), .rst_n(n_rst_n), .refrac(refrac), .i_in(i0), .v(v0), .spike(s0));
+    lif_neuron #(.THRESHOLD(THRESHOLD)) n1 (.clk(clk), .rst_n(n_rst_n), .refrac(refrac), .i_in(i1), .v(v1), .spike(s1));
+    lif_neuron #(.THRESHOLD(THRESHOLD)) n2 (.clk(clk), .rst_n(n_rst_n), .refrac(refrac), .i_in(i2), .v(v2), .spike(s2));
+    lif_neuron #(.THRESHOLD(THRESHOLD)) n3 (.clk(clk), .rst_n(n_rst_n), .refrac(refrac), .i_in(i3), .v(v3), .spike(s3));
 
     // Neuron 0's voltage under its original name, so the testbench can read dut.v
     wire [7:0] v = v0;
 
-    assign uo_out  = {v[7:1], s0};
+    // ---- output page select ----
+    assign uo_out  = (bist_en && page_alt) ? misr[15:8]                       :
+                     bist_en               ? {misr[5:0], bist_pass, bist_done} :
+                     page_alt              ? 8'h00                             :
+                                             {v[7:1], s0};
     assign uio_out = {s3, s2, s1, 5'b00000};
     assign uio_oe  = 8'b1110_0000;
 
     // tie off unused signals so synthesis doesn't warn
-    wire _unused = &{ena, uio_in[7:3], v[0], v1, v2, v3, 1'b0};
+    wire _unused = &{ena, uio_in[7:5], v[0], v1, v2, v3, misr[7:6], 1'b0};
 
 endmodule

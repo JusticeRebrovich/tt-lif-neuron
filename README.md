@@ -29,6 +29,9 @@ V_next = V - leak + I        leak = V >> 4, forced to at least 1 while V > 0
 The ring weight (`uio[1:0]`: 0, 64, 128 or 255) sets how hard one spike kicks the next neuron. At 255 a spike hops
 around the ring one clock at a time. With `MODE = 1` it keeps circulating with no further input.
 
+A built-in self-test (BIST) lets the chip check itself: an on-chip LFSR drives the ring for 1024 clocks, a signature
+register compresses the spikes, and one pin reports pass or fail. Details are in [`docs/info.md`](docs/info.md).
+
 ## Pinout
 
 | Pins | Function |
@@ -38,7 +41,8 @@ around the ring one clock at a time. With `MODE = 1` it keeps circulating with n
 | `uo[7:1]` | Neuron 0 membrane voltage `V[7:1]` |
 | `uio[1:0]` | Input: ring weight select |
 | `uio[2]` | Input: refractory mode (0 = 4 cycles, 1 = 3 cycles) |
-| `uio[4:3]` | Unused |
+| `uio[3]` | Input: run the built-in self-test (`uo[0]` = DONE, `uo[1]` = PASS, `uo[7:2]` = signature bits) |
+| `uio[4]` | Input: with the self-test on, show the signature high byte on `uo` |
 | `uio[7:5]` | Output: spikes of neurons 3, 2, 1 |
 
 ## Verification
@@ -54,14 +58,16 @@ make -B
 
 ## Implementation results
 
-From the GitHub Actions build (`gds` workflow) of the original single-neuron design:
+From the GitHub Actions builds (`gds` workflow). Gate-level simulation and all 15 Tiny Tapeout precheck items pass
+for the rows with numbers.
 
-- 149 standard cells, about 8.3% utilization of the 1x1 tile
-- Gate-level simulation passes
-- 15/15 Tiny Tapeout precheck items pass
+| Design | Standard cells | Flip-flops | Utilization of the 1x1 tile |
+| --- | --- | --- | --- |
+| Single neuron (`main`) | 149 | 12 | 8.3% |
+| Four-neuron ring with refractory mode | 431 | 48 | 27.7% |
+| Ring plus built-in self-test | to be measured | | |
 
-Figures for the four-neuron ring will replace these once its build is measured. Development notes are in
-[`docs/devlog`](docs/devlog).
+Development notes are in [`docs/devlog`](docs/devlog).
 
 ## Repository layout
 

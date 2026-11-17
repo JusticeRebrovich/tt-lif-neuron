@@ -54,8 +54,9 @@ The design is checked cycle by cycle against Python golden models with [cocotb](
 `test_lif.py`, `test_ring.py` and `test_bist.py`. They also run on the gate-level netlist after synthesis, where
 only the pins are visible, so internal voltages are checked in RTL simulation only.
 
-`python run.py` in `test/` runs everything, plus three deliberately altered builds on which the self-test must
-report FAIL. The template flow runs the three test files:
+`python run.py` in `test/` runs everything, plus 17 deliberately altered builds on which the self-test must report
+FAIL: one with a wrong threshold, and one for each bit of the expected signature. The template flow runs the three
+test files:
 
 ```bash
 cd test
@@ -71,7 +72,22 @@ for the rows with numbers.
 | --- | --- | --- | --- |
 | Single neuron (`main`) | 149 | 12 | 8.3% |
 | Four-neuron ring with refractory mode | 431 | 48 | 27.7% |
-| Ring plus built-in self-test | to be measured | | |
+| Ring plus first self-test | 671 | 83 | 42.6% |
+| Ring plus improved self-test | 936 | 83 | 61.2% |
+
+### Self-test fault coverage
+
+An independent review injected single faults into the RTL and ran the self-test on each one.
+
+| Self-test | Faults detected, of 193 | Real faults that still read PASS | Coverage of testable faults |
+| --- | --- | --- | --- |
+| First version: only neuron 0 driven | 130 | 41 | 76% |
+| Improved: every neuron driven and observed | 174 | 1 | 99.4% |
+
+The remaining faults are in logic that no stimulus can reach from the pins. The one real hole needed the ring to
+keep its self-test state afterwards; the neurons are now reset when the self-test is switched off. That last change
+has not been re-measured. [`test/bist_faultsim.py`](test/bist_faultsim.py) is the small fault simulator used to tune
+the stimulus.
 
 Development notes are in [`docs/devlog`](docs/devlog).
 

@@ -50,7 +50,8 @@ produces (`0x53DF`, taken from the Python golden model).
 
 Start a run with `BIST` low or straight after a reset; raising `BIST` restarts the test from the beginning. DONE
 rises exactly 1025 clocks after `BIST` goes high. The ring keeps running during and after the test, so the spike
-pins `uio[7:5]` stay active. Signature bits 7:6 are compared on-chip but are not shown on any page.
+pins `uio[7:5]` stay active. Setting `BIST` back to 0 resets the neurons on the next clock, so normal operation
+starts from rest. Signature bits 7:6 are compared on-chip but are not shown on any page.
 
 While `BIST` is 1 the `uo` pins show the result instead of neuron 0:
 

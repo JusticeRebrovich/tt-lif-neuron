@@ -99,7 +99,9 @@ async def test_bist_restarts_cleanly(dut):
     model = await chip_setup(dut)
     for _ in range(300):
         await step(dut, model, 0, BIST)
-    for _ in range(60):                                   # back to normal: the ring must still work
+    uo = await step(dut, model, 255, 0b00011)             # leaving the self-test resets the neurons,
+    assert uo == 0 and int(dut.uio_out.value) == 0, "ring should be at rest after leaving the self-test"
+    for _ in range(60):                                   # and the ring then works as normal
         await step(dut, model, 40, 0b00011)
     for _ in range(500):
         await step(dut, model, 0, BIST)

@@ -8,6 +8,7 @@ BIST (uio_in[3] = 1):
     every weight and both refractory modes
   - a 16-bit signature register (MISR) folds in all four voltages and spikes each clock
   - afterwards DONE is set, and PASS is set if the signature equals BIST_GOLDEN
+  - the first clock after the BIST pin goes low resets the neurons again
 
 Driving and observing every neuron is what gives the self-test its fault
 coverage: an earlier version drove only neuron 0 and missed 41 of 171 faults.
@@ -87,7 +88,10 @@ class ChipModel:
     def step(self, ui, uio):
         """Advance one clock with rst_n high. ui = ui_in, uio = uio_in."""
         if not (uio >> 3) & 1:                       # normal operation
-            self.ring.step(ui, uio & 3, (uio >> 2) & 1)
+            if self.cnt != 0:                        # first clock after the self-test: reset the neurons
+                self.ring.reset()
+            else:
+                self.ring.step(ui, uio & 3, (uio >> 2) & 1)
             self.cnt, self.lfsr, self.misr = 0, LFSR_SEED, 0
         elif self.cnt == 0:                          # first BIST clock: reset the neurons
             self.ring.reset()

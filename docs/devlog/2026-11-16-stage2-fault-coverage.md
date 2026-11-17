@@ -69,7 +69,48 @@ New golden signature: `0x53DF`. Spikes per neuron during the self-test went from
 
 RTL simulation: 20 of 20 on the normal build, and 3 of 3 altered builds report FAIL as required. Icarus `-Wall` lint is clean.
 
+## Verifier re-measurement (commit e0a20d1): PASS
+
+Same 193-fault list as before, so the numbers compare directly.
+
+| | First self-test | Improved self-test |
+|---|---|---|
+| Detected | 130 | 174 |
+| Redundant (no stimulus can expose them) | 18 | 18 |
+| Unobservable at the pins | 3 | 0 |
+| Real faults that still read PASS | 41 (42 after the correction below) | 1 |
+| Coverage of testable faults | 76% | 174 of 175, 99.4% |
+
+- All 41 earlier holes are closed, and the three previously unobservable faults are detected, because the signature now sees every voltage bit.
+- On the verifier's extended list of 533 single faults, including faults in the new stimulus logic, 506 are detected.
+- No aliasing was found. All 200 random double faults were detected.
+- Negative current, and a sum of 512 or more, are still never produced during the self-test.
+
+Corrections to the numbers above in this log: one fault the verifier first classed as redundant was a real corner-case hole (a clamp term on neuron 0, reachable only by leaving the self-test mid-run without a reset). So the first table's "22 undetectable" should read 21, and its "41 real" should read 42.
+
+The verifier also pointed out that my 154 of 154 could not be reproduced, because the fault simulator was not in the repo. It is now: `test/bist_faultsim.py` prints 108 of 151 for the first stimulus and 154 of 154 for the final one, and asserts that its healthy signature equals the golden model's.
+
+## GitHub Actions on e0a20d1
+
+`test`, `docs`, hardening, the real gate-level test and 15 of 15 prechecks passed.
+
+| Design | Cells | Flip-flops | Wire length | Utilization |
+|---|---|---|---|---|
+| Ring plus first self-test | 671 | 83 | 12,843 µm | 42.6% |
+| Ring plus improved self-test | 936 | 83 | 22,785 µm | 61.2% |
+
+Better fault coverage cost about 19 points of utilization: four amplitude selectors, three more adders for the direct currents, and a wider signature input. At 61% the design is above the flow's 60% placement-density setting, so no more logic is planned.
+
+## Cleanup after the re-measurement
+
+- **Neurons are reset when the self-test is switched off.** This removes the route to the last real hole. Not re-measured by the verifier.
+- **The PASS comparator is now checked bit by bit.** The verifier showed that two altered builds (bits 15 and 6) left a comparator that ignored the other 14 bits undetected. There are now 16 builds, one per signature bit.
+- `run.py` prints a one-line summary.
+
+RTL simulation after the cleanup: 20 of 20 on the normal build, and the self-test reports FAIL on 17 of 17 altered builds.
+
 ## Open
 
-- Verifier re-measurement of fault coverage.
-- Hardening, gate-level test and utilization for this commit.
+- Hardening and gate-level results for the cleanup commit.
+- Timing: no slack figures have been read yet.
+- A self-test cannot see its own normal/test input selectors stuck on the test side. Normal-mode pin tests cover that on silicon.

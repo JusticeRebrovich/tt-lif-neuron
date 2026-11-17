@@ -89,7 +89,8 @@ endmodule
 //   amplitude, while a counter steps through every weight and both refractory
 //   modes. A signature register (MISR) folds in all four voltages and spikes.
 //   Afterwards DONE is set, and PASS is set if the signature equals
-//   BIST_GOLDEN, the value the Python golden model produces.
+//   BIST_GOLDEN, the value the Python golden model produces. Switching the
+//   self-test off resets the neurons again.
 //
 // uo_out pages (uio_in[4:3]):
 //   00: {V0[7:1], spike0}                        normal operation
@@ -182,7 +183,11 @@ module tt_um_justice_lif #(
     wire [7:0] d3      = bist_en ? bist_i3       : 8'd0;   // the self-test
     wire [1:0] w_sel   = bist_en ? bist_cnt[9:8] : uio_in[1:0];
     wire       mode    = bist_en ? bist_cnt[7]   : uio_in[2];
-    wire       n_rst_n = rst_n && !bist_start;   // the self-test starts from reset neurons
+    // The neurons are reset on the first clock of the self-test and on the
+    // first clock after it is switched off, so both the test and normal
+    // operation start from a known state.
+    wire       bist_exit = !bist_en && (bist_cnt != 11'd0);
+    wire       n_rst_n   = rst_n && !bist_start && !bist_exit;
 
     // ---- ring weight: how hard one spike kicks the next neuron ----
     wire [7:0] w     = (w_sel == 2'd0) ? 8'd0   :   // ring off

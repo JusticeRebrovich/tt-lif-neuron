@@ -9,7 +9,7 @@
 //   - leak is a right shift, so no multiplier is needed
 //   - the result is clamped to 0..255 instead of wrapping
 //   - if V_next >= THRESHOLD: fire a spike, reset V to 0,
-//     and ignore input for REFRAC cycles (refractory period)
+//     and ignore input for 3 or 4 cycles (refractory period)
 
 `default_nettype none
 `timescale 1ns / 1ps
@@ -20,11 +20,11 @@
 // ---------------------------------------------------------------------------
 module lif_neuron #(
     parameter [7:0] THRESHOLD  = 8'd200,
-    parameter       LEAK_SHIFT = 4,      // leak = V/16 per cycle
-    parameter [2:0] REFRAC     = 3'd4    // refractory cycles after a spike
+    parameter       LEAK_SHIFT = 4       // leak = V/16 per cycle
 ) (
     input  wire              clk,
     input  wire              rst_n,     // active-low synchronous reset
+    input  wire        [2:0] refrac,    // refractory cycles, latched when the neuron fires
     input  wire signed [9:0] i_in,      // summed input current, -512..511
     output reg         [7:0] v,         // membrane voltage
     output reg               spike      // registered spike output
@@ -61,7 +61,7 @@ module lif_neuron #(
             // fire
             v        <= 8'd0;
             spike    <= 1'b1;
-            refr_cnt <= REFRAC;
+            refr_cnt <= refrac;
         end else begin
             // integrate and leak
             v        <= v_sat;
@@ -73,13 +73,20 @@ endmodule
 
 // ---------------------------------------------------------------------------
 // Top level: four neurons in a ring.
-// With uio_in[1:0] = 0 the ring weight is 0, so neuron 0 behaves exactly like
-// the original single-neuron design (the original tests run in this mode).
+// With uio_in[2:0] = 0 the ring weight is 0 and the refractory period is 4, so
+// neuron 0 behaves exactly like the original single-neuron design (the
+// original tests run in this mode).
+//
+// Refractory mode (uio_in[2]):
+//   0: 4 cycles. The kick from neuron 3 reaches neuron 0 while it is still
+//      refractory, so each wave makes one pass and the input sets the rhythm.
+//   1: 3 cycles. The kick arrives just after neuron 0 recovers, so at weight
+//      255 a single spike keeps circulating: a self-sustaining oscillator.
 // ---------------------------------------------------------------------------
 module tt_um_justice_lif (
     input  wire [7:0] ui_in,    // input current I to neuron 0
     output wire [7:0] uo_out,   // [0] = neuron 0 spike, [7:1] = top 7 bits of its V
-    input  wire [7:0] uio_in,   // [1:0] = ring weight select
+    input  wire [7:0] uio_in,   // [1:0] = ring weight select, [2] = refractory mode
     output wire [7:0] uio_out,  // [7:5] = spikes of neurons 3, 2, 1
     output wire [7:0] uio_oe,   // [7:5] outputs, the rest inputs
     input  wire       ena,      // high when this design is selected
@@ -93,6 +100,9 @@ module tt_um_justice_lif (
                        (w_sel == 2'd1) ? 8'd64  :
                        (w_sel == 2'd2) ? 8'd128 :
                                          8'd255;    // one kick is enough to fire
+
+    // ---- refractory mode: 4 cycles (input-paced) or 3 (self-sustaining) ----
+    wire [2:0] refrac = uio_in[2] ? 3'd3 : 3'd4;
 
     wire [7:0] v0, v1, v2, v3;
     wire       s0, s1, s2, s3;
@@ -109,10 +119,10 @@ module tt_um_justice_lif (
     wire signed [9:0] i2 = $signed({2'b00, kick2});
     wire signed [9:0] i3 = $signed({2'b00, kick3});
 
-    lif_neuron n0 (.clk(clk), .rst_n(rst_n), .i_in(i0), .v(v0), .spike(s0));
-    lif_neuron n1 (.clk(clk), .rst_n(rst_n), .i_in(i1), .v(v1), .spike(s1));
-    lif_neuron n2 (.clk(clk), .rst_n(rst_n), .i_in(i2), .v(v2), .spike(s2));
-    lif_neuron n3 (.clk(clk), .rst_n(rst_n), .i_in(i3), .v(v3), .spike(s3));
+    lif_neuron n0 (.clk(clk), .rst_n(rst_n), .refrac(refrac), .i_in(i0), .v(v0), .spike(s0));
+    lif_neuron n1 (.clk(clk), .rst_n(rst_n), .refrac(refrac), .i_in(i1), .v(v1), .spike(s1));
+    lif_neuron n2 (.clk(clk), .rst_n(rst_n), .refrac(refrac), .i_in(i2), .v(v2), .spike(s2));
+    lif_neuron n3 (.clk(clk), .rst_n(rst_n), .refrac(refrac), .i_in(i3), .v(v3), .spike(s3));
 
     // Neuron 0's voltage under its original name, so the testbench can read dut.v
     wire [7:0] v = v0;
@@ -122,6 +132,6 @@ module tt_um_justice_lif (
     assign uio_oe  = 8'b1110_0000;
 
     // tie off unused signals so synthesis doesn't warn
-    wire _unused = &{ena, uio_in[7:2], v[0], v1, v2, v3, 1'b0};
+    wire _unused = &{ena, uio_in[7:3], v[0], v1, v2, v3, 1'b0};
 
 endmodule

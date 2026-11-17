@@ -1,9 +1,10 @@
 ![](../../workflows/gds/badge.svg) ![](../../workflows/docs/badge.svg) ![](../../workflows/test/badge.svg) ![](../../workflows/fpga/badge.svg)
 
-# LIF Neuron: a digital leaky integrate-and-fire neuron in silicon
+# LIF Spiking Pattern Generator: four leaky integrate-and-fire neurons in silicon
 
-A small digital leaky integrate-and-fire (LIF) neuron written in Verilog and taken through the open-source
-[Tiny Tapeout](https://tinytapeout.com) flow (SkyWater 130 nm, LibreLane) to a hardened GDS layout.
+Four digital leaky integrate-and-fire (LIF) neurons wired in a ring, written in Verilog and taken through the
+open-source [Tiny Tapeout](https://tinytapeout.com) flow (SkyWater 130 nm, LibreLane). Neuron 0 is driven by the
+input pins and every spike kicks the next neuron, giving travelling or self-sustaining spike patterns.
 
 - **Top module:** `tt_um_justice_lif` (1x1 tile, 10 MHz target clock)
 - **Source:** [`src/tt_um_justice_lif.v`](src/tt_um_justice_lif.v)
@@ -11,7 +12,7 @@ A small digital leaky integrate-and-fire (LIF) neuron written in Verilog and tak
 
 ## What it does
 
-An 8-bit membrane voltage `V` updates every clock:
+Each neuron's 8-bit membrane voltage `V` updates every clock:
 
 ```
 V_next = V - leak + I        leak = V >> 4, forced to at least 1 while V > 0
@@ -19,28 +20,32 @@ V_next = V - leak + I        leak = V >> 4, forced to at least 1 while V > 0
 
 | Behavior | Implementation |
 | --- | --- |
-| Integrate | 8-bit input current on `ui[7:0]` is added to `V` each cycle |
+| Integrate | The input current is added to `V` each cycle: `ui[7:0]` for neuron 0, a kick from the previous neuron for the others |
 | Leak | `V >> 4` (a shift, so no multiplier), never less than 1, so `V` always decays to 0 |
-| Saturate | The add clamps at 255 instead of wrapping |
-| Fire | One-cycle spike on `uo[0]` when `V` reaches the threshold (200), then `V` resets to 0 |
-| Refractory | Input is ignored for 4 cycles after a spike |
+| Clamp | The result is clamped to 0..255 instead of wrapping |
+| Fire | One-cycle spike when `V` reaches the threshold (200), then `V` resets to 0 |
+| Refractory | Input is ignored for 4 or 3 cycles after a spike (`MODE` pin) |
 
-Threshold, leak shift and refractory length are Verilog parameters (`THRESHOLD`, `LEAK_SHIFT`, `REFRAC`).
+The ring weight (`uio[1:0]`: 0, 64, 128 or 255) sets how hard one spike kicks the next neuron. At 255 a spike hops
+around the ring one clock at a time. With `MODE = 1` it keeps circulating with no further input.
 
 ## Pinout
 
 | Pins | Function |
 | --- | --- |
-| `ui[7:0]` | Input current `I` |
-| `uo[0]` | Spike |
-| `uo[7:1]` | Membrane voltage `V[7:1]` |
-| `uio[7:0]` | Unused |
+| `ui[7:0]` | Input current `I` to neuron 0 |
+| `uo[0]` | Neuron 0 spike |
+| `uo[7:1]` | Neuron 0 membrane voltage `V[7:1]` |
+| `uio[1:0]` | Input: ring weight select |
+| `uio[2]` | Input: refractory mode (0 = 4 cycles, 1 = 3 cycles) |
+| `uio[4:3]` | Unused |
+| `uio[7:5]` | Output: spikes of neurons 3, 2, 1 |
 
 ## Verification
 
-The design is checked cycle by cycle against a Python golden model ([`test/lif_model.py`](test/lif_model.py))
-with [cocotb](https://www.cocotb.org). The same tests run on the RTL and on the gate-level netlist after
-synthesis. To run the RTL simulation locally:
+The design is checked cycle by cycle against Python golden models ([`test/lif_model.py`](test/lif_model.py) for one
+neuron, [`test/ring_model.py`](test/ring_model.py) for the ring) with [cocotb](https://www.cocotb.org). The same
+tests run on the RTL and on the gate-level netlist after synthesis. To run the RTL simulation locally:
 
 ```bash
 cd test
@@ -49,11 +54,14 @@ make -B
 
 ## Implementation results
 
-From the GitHub Actions build (`gds` workflow):
+From the GitHub Actions build (`gds` workflow) of the original single-neuron design:
 
 - 149 standard cells, about 8.3% utilization of the 1x1 tile
 - Gate-level simulation passes
 - 15/15 Tiny Tapeout precheck items pass
+
+Figures for the four-neuron ring will replace these once its build is measured. Development notes are in
+[`docs/devlog`](docs/devlog).
 
 ## Repository layout
 

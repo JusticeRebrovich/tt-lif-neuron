@@ -1,0 +1,53 @@
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 760 380' width='760' height='380' role='img' aria-label='Chip architecture' font-family='Segoe UI, Helvetica, Arial, sans-serif'>
+<rect width='760' height='380' fill='#ffffff'/>
+<text x='24' y='30' font-size='16' font-weight='600' fill='#1f2933'>Chip architecture</text>
+<defs><marker id='a' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='7' markerHeight='7' orient='auto'><path d='M0 0L10 5L0 10z' fill='#6b7785'/></marker></defs>
+<text x='24' y='50' font-size='12' fill='#6b7785' text-anchor='start' font-weight='400'>Normal mode: the pins drive the ring. Self-test mode: the on-chip generator does, and a signature is checked.</text>
+<rect x='30' y='90' width='130' height='54' rx='8' fill='#f3f6fa' stroke='#d9dee4'/>
+<text x='95.0' y='112.0' font-size='13' fill='#1f2933' text-anchor='middle' font-weight='600'>Input pins</text>
+<text x='95.0' y='130.0' font-size='11' fill='#6b7785' text-anchor='middle' font-weight='400'>current, weight, mode</text>
+<rect x='30' y='230' width='130' height='74' rx='8' fill='#f3f6fa' stroke='#d9dee4'/>
+<text x='95.0' y='262.0' font-size='13' fill='#1f2933' text-anchor='middle' font-weight='600'>Self-test</text>
+<text x='95.0' y='280.0' font-size='11' fill='#6b7785' text-anchor='middle' font-weight='400'>counter + LFSR</text>
+<rect x='210' y='150' width='110' height='70' rx='8' fill='#f3f6fa' stroke='#d9dee4'/>
+<text x='265.0' y='180.0' font-size='13' fill='#1f2933' text-anchor='middle' font-weight='600'>Select</text>
+<text x='265.0' y='198.0' font-size='11' fill='#6b7785' text-anchor='middle' font-weight='400'>pins or self-test</text>
+<rect x='370' y='160' width='66' height='50' rx='8' fill='#e8f1fe' stroke='#1f6feb'/>
+<text x='403.0' y='180.0' font-size='13' fill='#1f2933' text-anchor='middle' font-weight='600'>N0</text>
+<text x='403.0' y='198.0' font-size='11' fill='#6b7785' text-anchor='middle' font-weight='400'>LIF</text>
+<rect x='452' y='160' width='66' height='50' rx='8' fill='#e8f1fe' stroke='#1f6feb'/>
+<text x='485.0' y='180.0' font-size='13' fill='#1f2933' text-anchor='middle' font-weight='600'>N1</text>
+<text x='485.0' y='198.0' font-size='11' fill='#6b7785' text-anchor='middle' font-weight='400'>LIF</text>
+<path d='M436 185L452 185' stroke='#6b7785' stroke-width='1.4' fill='none' marker-end='url(#a)'/>
+<rect x='534' y='160' width='66' height='50' rx='8' fill='#e8f1fe' stroke='#1f6feb'/>
+<text x='567.0' y='180.0' font-size='13' fill='#1f2933' text-anchor='middle' font-weight='600'>N2</text>
+<text x='567.0' y='198.0' font-size='11' fill='#6b7785' text-anchor='middle' font-weight='400'>LIF</text>
+<path d='M518 185L534 185' stroke='#6b7785' stroke-width='1.4' fill='none' marker-end='url(#a)'/>
+<rect x='616' y='160' width='66' height='50' rx='8' fill='#e8f1fe' stroke='#1f6feb'/>
+<text x='649.0' y='180.0' font-size='13' fill='#1f2933' text-anchor='middle' font-weight='600'>N3</text>
+<text x='649.0' y='198.0' font-size='11' fill='#6b7785' text-anchor='middle' font-weight='400'>LIF</text>
+<path d='M600 185L616 185' stroke='#6b7785' stroke-width='1.4' fill='none' marker-end='url(#a)'/>
+<path d='M649 210V232H403V212' stroke='#6b7785' stroke-width='1.4' fill='none' marker-end='url(#a)'/>
+<text x='526' y='248' font-size='11' fill='#6b7785' text-anchor='middle' font-weight='400'>ring closes: N3 kicks N0</text>
+<rect x='370' y='290' width='150' height='54' rx='8' fill='#f3f6fa' stroke='#d9dee4'/>
+<text x='445.0' y='312.0' font-size='13' fill='#1f2933' text-anchor='middle' font-weight='600'>Signature (MISR)</text>
+<text x='445.0' y='330.0' font-size='11' fill='#6b7785' text-anchor='middle' font-weight='400'>all voltages and spikes</text>
+<rect x='580' y='290' width='150' height='54' rx='8' fill='#f3f6fa' stroke='#d9dee4'/>
+<text x='655.0' y='312.0' font-size='13' fill='#1f2933' text-anchor='middle' font-weight='600'>Compare</text>
+<text x='655.0' y='330.0' font-size='11' fill='#6b7785' text-anchor='middle' font-weight='400'>with golden 0x53DF</text>
+<rect x='580' y='90' width='150' height='46' rx='8' fill='#f3f6fa' stroke='#d9dee4'/>
+<text x='655.0' y='108.0' font-size='13' fill='#1f2933' text-anchor='middle' font-weight='600'>Output pages</text>
+<text x='655.0' y='126.0' font-size='11' fill='#6b7785' text-anchor='middle' font-weight='400'>uo[7:0]</text>
+<path d='M160 117L222 150' stroke='#6b7785' stroke-width='1.4' fill='none' marker-end='url(#a)'/>
+<path d='M160 262L222 220' stroke='#6b7785' stroke-width='1.4' fill='none' marker-end='url(#a)'/>
+<path d='M320 185L370 185' stroke='#6b7785' stroke-width='1.4' fill='none' marker-end='url(#a)'/>
+<path d='M445 232L445 290' stroke='#6b7785' stroke-width='1.4' fill='none' marker-end='url(#a)'/>
+<path d='M520 317L580 317' stroke='#6b7785' stroke-width='1.4' fill='none' marker-end='url(#a)'/>
+<path d='M712 290L712 136' stroke='#6b7785' stroke-width='1.4' fill='none' marker-end='url(#a)'/>
+<path d='M403 160L580 122' stroke='#6b7785' stroke-width='1.4' fill='none' marker-end='url(#a)'/>
+<text x='478' y='130' font-size='11' fill='#6b7785' text-anchor='middle' font-weight='400'>V0, spike</text>
+<text x='704' y='262' font-size='11' fill='#6b7785' text-anchor='end' font-weight='400'>DONE, PASS</text>
+<path d='M160 280L370 310' stroke='#6b7785' stroke-width='1.4' fill='none' marker-end='url(#a)'/>
+<text x='250' y='322' font-size='11' fill='#6b7785' text-anchor='middle' font-weight='400'>stimulus to N1..N3</text>
+<text x='370' y='362' font-size='11' fill='#6b7785' text-anchor='start' font-weight='400'>The four spikes also leave on pins uo[0] and uio[7:5].</text>
+</svg>

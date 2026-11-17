@@ -1,0 +1,22 @@
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 760 330' width='760' height='330' role='img' aria-label='One leaky integrate-and-fire neuron' font-family='Segoe UI, Helvetica, Arial, sans-serif'>
+<rect width='760' height='330' fill='#ffffff'/>
+<text x='24' y='30' font-size='16' font-weight='600' fill='#1f2933'>One leaky integrate-and-fire neuron</text>
+<text x='24' y='50' font-size='12' fill='#6b7785' text-anchor='start' font-weight='400'>Golden model of one neuron, constant input 30. The climb slows as the leak grows; it fires every 13 clocks.</text>
+<line x1='70.0' y1='250.0' x2='730.0' y2='250.0' stroke='#d9dee4' stroke-width='1'/>
+<text x='62' y='254.0' font-size='12' fill='#6b7785' text-anchor='end' font-weight='400'>0</text>
+<line x1='70.0' y1='170.0' x2='730.0' y2='170.0' stroke='#d9dee4' stroke-width='1'/>
+<text x='62' y='174.0' font-size='12' fill='#6b7785' text-anchor='end' font-weight='400'>100</text>
+<line x1='70.0' y1='90.0' x2='730.0' y2='90.0' stroke='#d9dee4' stroke-width='1'/>
+<text x='62' y='94.0' font-size='12' fill='#6b7785' text-anchor='end' font-weight='400'>200</text>
+<line x1='70.0' y1='90.0' x2='730.0' y2='90.0' stroke='#c2410c' stroke-width='1.2' stroke-dasharray='5 4'/>
+<text x='726' y='84.0' font-size='12' fill='#c2410c' text-anchor='end' font-weight='400'>threshold 200</text>
+<path d='M70.0 226.0 H85.0 V202.8 H100.0 V181.2 H115.0 V161.2 H130.0 V142.0 H145.0 V124.4 H160.0 V107.6 H175.0 V92.4 H190.0 V250.0 H205.0 V250.0 H220.0 V250.0 H235.0 V250.0 H250.0 V250.0 H265.0 V226.0 H280.0 V202.8 H295.0 V181.2 H310.0 V161.2 H325.0 V142.0 H340.0 V124.4 H355.0 V107.6 H370.0 V92.4 H385.0 V250.0 H400.0 V250.0 H415.0 V250.0 H430.0 V250.0 H445.0 V250.0 H460.0 V226.0 H475.0 V202.8 H490.0 V181.2 H505.0 V161.2 H520.0 V142.0 H535.0 V124.4 H550.0 V107.6 H565.0 V92.4 H580.0 V250.0 H595.0 V250.0 H610.0 V250.0 H625.0 V250.0 H640.0 V250.0 H655.0 V226.0 H670.0 V202.8 H685.0 V181.2 H700.0 V161.2 H715.0 V142.0 H730.0' fill='none' stroke='#1f6feb' stroke-width='1.8'/>
+<line x1='197.5' y1='292.0' x2='197.5' y2='272.0' stroke='#c2410c' stroke-width='3'/>
+<line x1='392.5' y1='292.0' x2='392.5' y2='272.0' stroke='#c2410c' stroke-width='3'/>
+<line x1='587.5' y1='292.0' x2='587.5' y2='272.0' stroke='#c2410c' stroke-width='3'/>
+<text x='62' y='286' font-size='12' fill='#6b7785' text-anchor='end' font-weight='400'>spike</text>
+<text x='62' y='150' font-size='12' fill='#1f2933' text-anchor='end' font-weight='400'>V</text>
+<text x='70' y='316' font-size='12' fill='#6b7785' text-anchor='start' font-weight='400'>0</text>
+<text x='670' y='316' font-size='12' fill='#6b7785' text-anchor='middle' font-weight='400'>40 clocks</text>
+<text x='272.5' y='262' font-size='11' fill='#6b7785' text-anchor='start' font-weight='400'>4-clock refractory</text>
+</svg>

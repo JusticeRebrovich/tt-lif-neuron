@@ -42,10 +42,15 @@ and weight 255, a single spike keeps circulating with a period of 4 clocks and n
 ### Built-in self-test
 
 Setting `BIST` (`uio[3]`) to 1 makes the chip test itself. It resets the neurons, then for 1024 clocks an on-chip
-pseudo-random generator (an 8-bit LFSR) drives neuron 0 while a counter steps through every weight and both refractory
-modes. A 16-bit signature register (MISR) folds in all four spikes and the top bits of neuron 0's voltage on every
-clock. At the end the signature is compared with the value a healthy design produces (`0x55C4`, taken from the Python
-golden model).
+pseudo-random generator (an 8-bit LFSR) drives all four neurons directly while a counter steps through every weight
+and both refractory modes. Each neuron sees a different view of the LFSR at one of four amplitude levels (quiet,
+creep near the threshold, small, full), which rotate every 32 clocks. A 16-bit signature register (MISR) folds in
+all four voltages and spikes on every clock. At the end the signature is compared with the value a healthy design
+produces (`0x53DF`, taken from the Python golden model).
+
+Start a run with `BIST` low or straight after a reset; raising `BIST` restarts the test from the beginning. DONE
+rises exactly 1025 clocks after `BIST` goes high. The ring keeps running during and after the test, so the spike
+pins `uio[7:5]` stay active. Signature bits 7:6 are compared on-chip but are not shown on any page.
 
 While `BIST` is 1 the `uo` pins show the result instead of neuron 0:
 
@@ -70,7 +75,7 @@ against a Python golden model, cycle by cycle, using cocotb.
 5. **Self-sustaining oscillator:** set `uio[2:0] = 7`, apply `ui[7:0] = 255` for one clock, then 0. A spike keeps
    circulating: each of the four spike pins pulses once every 4 clocks. Clear `uio[2]` and it stops.
 
-6. **Self-test:** set `uio[4:3] = 01` and run the clock for at least 1026 cycles. `uo[0]` (DONE) goes high, and
+6. **Self-test:** set `uio[4:3] = 01` and run the clock for at least 1025 cycles. `uo[0]` (DONE) goes high, and
    `uo[1]` (PASS) is high on a working chip, so `uo[1:0]` reads 3. Set `uio[4:3]` back to 00 to return to normal
    operation.
 

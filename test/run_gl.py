@@ -9,4 +9,4 @@ NETLIST = HERE.parent / "synth" / "tt_um_justice_lif_netlist.v"
 runner = get_runner("icarus")
 runner.build(sources=[NETLIST], hdl_toplevel="tt_um_justice_lif", build_dir=HERE / "sim_build_gl",
              timescale=("1ns", "1ps"), always=True)
-runner.test(hdl_toplevel="tt_um_justice_lif", test_module=["test_lif", "test_ring"], test_dir=HERE, build_dir=HERE / "sim_build_gl")
+runner.test(hdl_toplevel="tt_um_justice_lif", test_module=["test_lif", "test_ring", "test_bist"], test_dir=HERE, build_dir=HERE / "sim_build_gl")

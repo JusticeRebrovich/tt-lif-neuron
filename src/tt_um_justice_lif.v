@@ -85,9 +85,10 @@ endmodule
 //
 // Built-in self-test (uio_in[3] = 1):
 //   The first clock resets the neurons. Then, for BIST_LEN clocks, an LFSR
-//   drives neuron 0 while a counter steps through every weight and both
-//   refractory modes, and a signature register (MISR) folds in the spikes and
-//   V0[7:4]. Afterwards DONE is set, and PASS is set if the signature equals
+//   drives all four neurons directly, each with its own bit pattern and
+//   amplitude, while a counter steps through every weight and both refractory
+//   modes. A signature register (MISR) folds in all four voltages and spikes.
+//   Afterwards DONE is set, and PASS is set if the signature equals
 //   BIST_GOLDEN, the value the Python golden model produces.
 //
 // uo_out pages (uio_in[4:3]):
@@ -97,7 +98,8 @@ endmodule
 //   10: 0                                        reserved
 // ---------------------------------------------------------------------------
 module tt_um_justice_lif #(
-    parameter [7:0] THRESHOLD = 8'd200   // firing threshold of every neuron
+    parameter [7:0]  THRESHOLD   = 8'd200,    // firing threshold of every neuron
+    parameter [15:0] BIST_GOLDEN = 16'h53DF   // self-test signature of a healthy chip (test/chip_model.py)
 ) (
     input  wire [7:0] ui_in,    // input current I to neuron 0
     output wire [7:0] uo_out,   // selected by uio_in[4:3], see the page table above
@@ -109,8 +111,7 @@ module tt_um_justice_lif #(
     input  wire       rst_n     // active-low reset
 );
 
-    localparam [10:0] BIST_LEN    = 11'd1024;    // clocks of stimulus
-    localparam [15:0] BIST_GOLDEN = 16'h55C4;    // signature of a healthy chip (test/chip_model.py)
+    localparam [10:0] BIST_LEN = 11'd1024;    // clocks of stimulus
 
     wire bist_en  = uio_in[3];
     wire page_alt = uio_in[4];
@@ -128,8 +129,9 @@ module tt_um_justice_lif #(
     wire bist_pass  = bist_done && (misr == BIST_GOLDEN);
 
     wire        lfsr_fb   = lfsr[7] ^ lfsr[5] ^ lfsr[4] ^ lfsr[3];
-    wire [7:0]  misr_in   = {v0[7:4], s3, s2, s1, s0};
-    wire [15:0] misr_next = {misr[14:0], 1'b0} ^ (misr[15] ? 16'h1021 : 16'h0000) ^ {8'h00, misr_in};
+    // Every bit of every voltage reaches the signature, so a fault in any neuron shows up.
+    wire [15:0] misr_in   = {v0 ^ {v2[3:0], v2[7:4]}, v1 ^ {v3[3:0], v3[7:4]}} ^ {12'h000, s3, s2, s1, s0};
+    wire [15:0] misr_next = {misr[14:0], 1'b0} ^ (misr[15] ? 16'h1021 : 16'h0000) ^ misr_in;
 
     always @(posedge clk) begin
         if (!rst_n || !bist_en) begin
@@ -145,12 +147,39 @@ module tt_um_justice_lif #(
         end
     end
 
-    // What the self-test feeds the ring: small and large currents alternate
-    // every 64 clocks, the mode every 128, the weight every 256.
-    wire [7:0] bist_i = bist_cnt[6] ? lfsr : {3'b000, lfsr[4:0]};
+    // What the self-test feeds the ring. Each neuron sees a different view of
+    // the LFSR, at one of four amplitude levels that changes every 32 clocks,
+    // one step out of phase with its neighbours. The mode changes every 128
+    // clocks and the weight every 256.
+    //   level 0: quiet, so V decays (tests the leak down to rest)
+    //   level 1: creep, 12..19, so V hovers near the threshold (tests the threshold exactly)
+    //   level 2: small, 0..31
+    //   level 3: full, 0..255 (tests saturation and the refractory period)
+    function [7:0] bist_amp(input [7:0] pattern, input [1:0] level);
+        case (level)
+            2'd0: bist_amp = 8'd0;
+            2'd1: bist_amp = 8'd12 + {5'b00000, pattern[2:0]};
+            2'd2: bist_amp = {3'b000, pattern[4:0]};
+            2'd3: bist_amp = pattern;
+        endcase
+    endfunction
+
+    wire [7:0] pat0 = lfsr;
+    wire [7:0] pat1 = {lfsr[3:0], lfsr[7:4]};
+    wire [7:0] pat2 = {lfsr[0], lfsr[1], lfsr[2], lfsr[3], lfsr[4], lfsr[5], lfsr[6], lfsr[7]};
+    wire [7:0] pat3 = ~lfsr;
+    wire [1:0] seg  = bist_cnt[6:5];
+
+    wire [7:0] bist_i0 = bist_amp(pat0, seg);
+    wire [7:0] bist_i1 = bist_amp(pat1, seg + 2'd1);
+    wire [7:0] bist_i2 = bist_amp(pat2, seg + 2'd2);
+    wire [7:0] bist_i3 = bist_amp(pat3, seg + 2'd3);
 
     // ---- the ring's inputs come from the pins, or from the self-test ----
-    wire [7:0] i_ext   = bist_en ? bist_i        : ui_in;
+    wire [7:0] i_ext   = bist_en ? bist_i0       : ui_in;
+    wire [7:0] d1      = bist_en ? bist_i1       : 8'd0;   // neurons 1..3 are driven
+    wire [7:0] d2      = bist_en ? bist_i2       : 8'd0;   // directly only during
+    wire [7:0] d3      = bist_en ? bist_i3       : 8'd0;   // the self-test
     wire [1:0] w_sel   = bist_en ? bist_cnt[9:8] : uio_in[1:0];
     wire       mode    = bist_en ? bist_cnt[7]   : uio_in[2];
     wire       n_rst_n = rst_n && !bist_start;   // the self-test starts from reset neurons
@@ -172,9 +201,9 @@ module tt_um_justice_lif #(
 
     // Neuron 0 gets the external input plus the kick that closes the ring.
     wire signed [9:0] i0 = $signed({2'b00, i_ext}) + $signed({2'b00, kick0});
-    wire signed [9:0] i1 = $signed({2'b00, kick1});
-    wire signed [9:0] i2 = $signed({2'b00, kick2});
-    wire signed [9:0] i3 = $signed({2'b00, kick3});
+    wire signed [9:0] i1 = $signed({2'b00, d1}) + $signed({2'b00, kick1});
+    wire signed [9:0] i2 = $signed({2'b00, d2}) + $signed({2'b00, kick2});
+    wire signed [9:0] i3 = $signed({2'b00, d3}) + $signed({2'b00, kick3});
 
     lif_neuron #(.THRESHOLD(THRESHOLD)) n0 (.clk(clk), .rst_n(n_rst_n), .refrac(refrac), .i_in(i0), .v(v0), .spike(s0));
     lif_neuron #(.THRESHOLD(THRESHOLD)) n1 (.clk(clk), .rst_n(n_rst_n), .refrac(refrac), .i_in(i1), .v(v1), .spike(s1));
@@ -193,6 +222,6 @@ module tt_um_justice_lif #(
     assign uio_oe  = 8'b1110_0000;
 
     // tie off unused signals so synthesis doesn't warn
-    wire _unused = &{ena, uio_in[7:5], v[0], v1, v2, v3, misr[7:6], 1'b0};
+    wire _unused = &{ena, uio_in[7:5], 1'b0};
 
 endmodule

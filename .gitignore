@@ -11,5 +11,5 @@ test/sim_build
 test/sim_build_fault
 test/__pycache__/
 test/results.xml
-test/results_fault.xml
+test/results_fault*.xml
 test/gate_level_netlist.v

@@ -3,10 +3,14 @@ built-in self-test (BIST). Given the input pins each clock, it predicts every ou
 
 BIST (uio_in[3] = 1):
   - the first clock resets the neurons
-  - for BIST_LEN clocks an 8-bit LFSR drives neuron 0, while a counter steps
-    through every weight and both refractory modes
-  - a 16-bit signature register (MISR) folds in the four spikes and V0[7:4] each clock
+  - for BIST_LEN clocks an 8-bit LFSR drives all four neurons directly, each
+    with its own bit pattern and amplitude, while a counter steps through
+    every weight and both refractory modes
+  - a 16-bit signature register (MISR) folds in all four voltages and spikes each clock
   - afterwards DONE is set, and PASS is set if the signature equals BIST_GOLDEN
+
+Driving and observing every neuron is what gives the self-test its fault
+coverage: an earlier version drove only neuron 0 and missed 41 of 171 faults.
 """
 
 from ring_model import RingModel
@@ -14,7 +18,7 @@ from ring_model import RingModel
 BIST_LEN = 1024
 LFSR_SEED = 0x01
 MISR_POLY = 0x1021          # x^16 + x^12 + x^5 + 1
-BIST_GOLDEN = 0x55C4        # what compute_golden() returns; the RTL holds the same constant
+BIST_GOLDEN = 0x53DF        # what compute_golden() returns; the RTL holds the same constant
 
 
 def lfsr_next(lfsr):
@@ -24,17 +28,42 @@ def lfsr_next(lfsr):
 
 
 def misr_next(misr, data):
-    """Shift left, apply the polynomial if the top bit falls out, fold in 8 bits of data."""
+    """Shift left, apply the polynomial if the top bit falls out, fold in 16 bits of data."""
     out = (misr << 1) & 0xFFFF
     if misr & 0x8000:
         out ^= MISR_POLY
-    return out ^ (data & 0xFF)
+    return out ^ (data & 0xFFFF)
+
+
+def swap_nibbles(x):
+    return ((x << 4) & 0xF0) | (x >> 4)
+
+
+def reverse_bits(x):
+    return int(f"{x:08b}"[::-1], 2)
+
+
+def bist_amp(pattern, level):
+    """Amplitude levels: 0 = quiet (V decays), 1 = creep (12..19, hovers near the threshold),
+    2 = small (0..31), 3 = full (0..255)."""
+    return (0, 12 + (pattern & 0x07), pattern & 0x1F, pattern)[level]
 
 
 def bist_stimulus(cnt, lfsr):
-    """What the BIST controller feeds the ring: (input current, weight select, refractory mode)."""
-    i = lfsr if (cnt >> 6) & 1 else lfsr & 0x1F     # alternate small and large currents
-    return i, (cnt >> 8) & 3, (cnt >> 7) & 1
+    """What the BIST controller feeds the ring: (four currents, weight select, refractory mode).
+    Each neuron sees a different view of the LFSR, and its amplitude level changes every
+    32 clocks, one step out of phase with its neighbours."""
+    patterns = (lfsr, swap_nibbles(lfsr), reverse_bits(lfsr), lfsr ^ 0xFF)
+    seg = (cnt >> 5) & 3
+    currents = [bist_amp(patterns[k], (seg + k) & 3) for k in range(4)]
+    return currents, (cnt >> 8) & 3, (cnt >> 7) & 1
+
+
+def misr_data(v, spikes):
+    """All four voltages and spikes, folded into 16 bits."""
+    hi = v[0] ^ swap_nibbles(v[2])
+    lo = v[1] ^ swap_nibbles(v[3])
+    return ((hi << 8) | lo) ^ sum(s << k for k, s in enumerate(spikes))
 
 
 class ChipModel:
@@ -64,8 +93,9 @@ class ChipModel:
             self.ring.reset()
             self.cnt = 1
         else:
-            data = (self.ring.v[0] & 0xF0) | sum(s << k for k, s in enumerate(self.ring.spikes))
-            self.ring.step(*bist_stimulus(self.cnt, self.lfsr))
+            data = misr_data(self.ring.v, self.ring.spikes)
+            currents, w_sel, mode = bist_stimulus(self.cnt, self.lfsr)
+            self.ring.step(currents[0], w_sel, mode, direct=currents[1:])
             if not self.done:
                 self.misr = misr_next(self.misr, data)
                 self.lfsr = lfsr_next(self.lfsr)
@@ -87,13 +117,17 @@ class ChipModel:
         return (s[3] << 7) | (s[2] << 6) | (s[1] << 5)
 
 
+def run_bist(model):
+    """Hold the BIST pin until DONE and return the signature."""
+    for _ in range(BIST_LEN + 1):
+        model.step(0, 0b01000)
+    assert model.done
+    return model.misr
+
+
 def compute_golden():
     """Run the BIST on the model and return the signature a healthy chip produces."""
-    m = ChipModel(golden=0)
-    for _ in range(BIST_LEN + 2):
-        m.step(0, 0b01000)
-    assert m.done
-    return m.misr
+    return run_bist(ChipModel(golden=0))
 
 
 if __name__ == "__main__":
@@ -104,14 +138,13 @@ if __name__ == "__main__":
             break
     m = ChipModel(golden=0)
     spikes = [0, 0, 0, 0]
-    for _ in range(BIST_LEN + 2):
+    for _ in range(BIST_LEN + 1):
         m.step(0, 0b01000)
         spikes = [a + b for a, b in zip(spikes, m.ring.spikes)]
     print(f"LFSR period {period}, spikes per neuron during BIST {spikes}, golden signature {m.misr:#06x}")
-    for thr in (199, 201):
-        f = ChipModel(golden=0)
-        for n in f.ring.neurons:
-            n.threshold = thr
-        for _ in range(BIST_LEN + 2):
-            f.step(0, 0b01000)
-        print(f"  faulty threshold {thr}: signature {f.misr:#06x}")
+    for k in range(4):
+        for thr in (199, 201):
+            f = ChipModel(golden=0)
+            f.ring.neurons[k].threshold = thr
+            print(f"  neuron {k} threshold {thr}: signature {run_bist(f):#06x}"
+                  f" ({'MISSED' if f.misr == m.misr else 'caught'})")

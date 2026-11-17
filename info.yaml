@@ -47,7 +47,7 @@ pinout:
   uio[1]: "W1 (input: ring weight select bit 1)"
   uio[2]: "MODE (input: 0 = refractory 4, 1 = refractory 3)"
   uio[3]: "BIST (input: 1 = run the built-in self-test)"
-  uio[4]: "PAGE (input: with BIST = 1, show the signature high byte on uo)"
+  uio[4]: "PAGE (input: with BIST = 1, show the signature high byte on uo; with BIST = 0, uo reads 0)"
   uio[5]: "SPIKE1 (output: neuron 1 spike)"
   uio[6]: "SPIKE2 (output: neuron 2 spike)"
   uio[7]: "SPIKE3 (output: neuron 3 spike)"

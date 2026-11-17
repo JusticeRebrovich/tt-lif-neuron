@@ -29,8 +29,9 @@ V_next = V - leak + I        leak = V >> 4, forced to at least 1 while V > 0
 The ring weight (`uio[1:0]`: 0, 64, 128 or 255) sets how hard one spike kicks the next neuron. At 255 a spike hops
 around the ring one clock at a time. With `MODE = 1` it keeps circulating with no further input.
 
-A built-in self-test (BIST) lets the chip check itself: an on-chip LFSR drives the ring for 1024 clocks, a signature
-register compresses the spikes, and one pin reports pass or fail. Details are in [`docs/info.md`](docs/info.md).
+A built-in self-test (BIST) lets the chip check itself: an on-chip LFSR drives all four neurons for 1024 clocks, a
+signature register compresses every voltage and spike, and one pin reports pass or fail. Details are in
+[`docs/info.md`](docs/info.md).
 
 ## Pinout
 
@@ -42,14 +43,19 @@ register compresses the spikes, and one pin reports pass or fail. Details are in
 | `uio[1:0]` | Input: ring weight select |
 | `uio[2]` | Input: refractory mode (0 = 4 cycles, 1 = 3 cycles) |
 | `uio[3]` | Input: run the built-in self-test (`uo[0]` = DONE, `uo[1]` = PASS, `uo[7:2]` = signature bits) |
-| `uio[4]` | Input: with the self-test on, show the signature high byte on `uo` |
+| `uio[4]` | Input: with the self-test on, show the signature high byte on `uo`. With it off, `uo` reads 0 (reserved page) |
 | `uio[7:5]` | Output: spikes of neurons 3, 2, 1 |
 
 ## Verification
 
-The design is checked cycle by cycle against Python golden models ([`test/lif_model.py`](test/lif_model.py) for one
-neuron, [`test/ring_model.py`](test/ring_model.py) for the ring) with [cocotb](https://www.cocotb.org). The same
-tests run on the RTL and on the gate-level netlist after synthesis. To run the RTL simulation locally:
+The design is checked cycle by cycle against Python golden models with [cocotb](https://www.cocotb.org):
+[`test/lif_model.py`](test/lif_model.py) for one neuron, [`test/ring_model.py`](test/ring_model.py) for the ring and
+[`test/chip_model.py`](test/chip_model.py) for every pin of the chip, including the self-test. The test files are
+`test_lif.py`, `test_ring.py` and `test_bist.py`. They also run on the gate-level netlist after synthesis, where
+only the pins are visible, so internal voltages are checked in RTL simulation only.
+
+`python run.py` in `test/` runs everything, plus three deliberately altered builds on which the self-test must
+report FAIL. The template flow runs the three test files:
 
 ```bash
 cd test

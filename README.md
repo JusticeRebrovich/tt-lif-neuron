@@ -98,7 +98,7 @@ value). The self-test must report FAIL on every one.
 ## Stage 4: measuring the self-test, and fixing it
 
 The first self-test passed all of its tests, and it was still not good enough. An independent review injected
-193 single faults into the design and ran the self-test on each one. It caught 130. Of the rest, 41 were real
+193 single faults into the design and ran the self-test on each one. It caught 130. Of the rest, 42 were real
 defects that would still have read PASS.
 
 The cause was that only neuron 0 was driven by the generator, and the signature saw only the spikes and four
@@ -117,12 +117,13 @@ is off by one.
 
 | Self-test | Faults detected, of 193 | Real faults that still read PASS | Coverage of testable faults |
 | --- | --- | --- | --- |
-| First version: only neuron 0 driven | 130 | 41 | 76% |
-| Reworked: every neuron driven and observed | 174 | 1 | 99.4% |
+| First version: only neuron 0 driven | 130 | 42 | 130 of 172, 76% |
+| Reworked: every neuron driven and observed | 174 | 1 | 174 of 175, 99.4% |
+| Plus a neuron reset when the self-test is switched off | 174 | 0 | 174 of 174, 100% |
 
-The faults that remain undetected are in logic no stimulus can reach from the pins. The one real hole needed
-the ring to keep its self-test state afterwards, so the neurons are now reset when the self-test is switched
-off. That last change has not been re-measured by the reviewer.
+The one hole left after the rework needed the ring to keep its self-test state afterwards. Resetting the neurons
+when the self-test is switched off made that fault unreachable from the pins, and the review confirmed it. The
+19 faults that remain undetected are in logic no stimulus can reach from the pins.
 [`test/bist_faultsim.py`](test/bist_faultsim.py) is the small fault simulator used to tune the stimulus.
 
 Better coverage was not free: the extra stimulus logic took the design from 42.6% to 61.0% of the tile.
@@ -171,8 +172,8 @@ The Tiny Tapeout template flow (`make -B` in `test/`) runs the three test files.
 | Gate-level tests could not read the internal `V` | First gate-level run in CI | Read `V` from the output pins when the internal signal does not exist |
 | Gate-level tests read outputs too early | Second gate-level run in CI | Sample 2 ns after the clock edge, once gate delays settle |
 | Ring-closing link was dead logic | Independent review | 3-cycle refractory mode |
-| `uio_oe` never checked: a mutant with the spike pins disabled passed every test | Mutation testing in the review | Check every output pin on every clock |
-| Self-test missed 41 real faults | Fault injection in the review | Drive and observe every neuron |
+| `uio_oe` never checked: a mutant with the spike pins disabled passed every test | Mutation testing in the review | The ring and chip tests check every output pin on every clock |
+| Self-test missed 42 real faults | Fault injection in the review | Drive and observe every neuron; reset the neurons when the self-test ends |
 | PASS comparator checked on only two bits | Mutation testing in the review | One altered build per signature bit |
 
 ## Implementation results
@@ -188,8 +189,9 @@ From the GitHub Actions build (`gds` workflow) of the current design:
 | Tiny Tapeout prechecks | 15 of 15 passed |
 | Gate-level simulation | Passes |
 
-Timing was read from the build one commit earlier, which is the same design apart from the reset on self-test
-exit. The flow constrains the clock to 20 ns; the design targets 100 ns.
+Timing was read from the build of commit `e0a20d1`. The only later design change is the neuron reset on
+self-test exit; everything after that is documentation. The flow constrains the clock to 20 ns; the design
+targets 100 ns.
 
 | Check | Typical corner | Slowest corner |
 | --- | --- | --- |
@@ -204,11 +206,20 @@ Not yet done: the fabricated chip has not been tested, because it has not been m
 
 ## The design in the tools
 
+### Layout (Tiny Tapeout GDS viewer)
+
+A top-down view of the hardened layout. The orange rows are the standard cells, which now fill most of the
+tile; in the single-neuron design the logic sat in one corner. The blue lines are the metal wiring layers, and
+the thick dark vertical bars are the power straps that feed every row.
+
+![Layout in the Tiny Tapeout GDS viewer](images/gds_viewer_layout.webp)
+
 ### Simulation waveform (Icarus Verilog, viewed in GTKWave)
 
-Neuron 0 with a constant input of 30, from the `test_constant_input_periodic` cocotb test. Reading down: the leak
-(`V >> 4`, at least 1), the voltage after the leak, the 9-bit sum, the clamped value, the stored voltage `v`, the
-refractory counter and the spike. `v` climbs 30, 59, 86 ... 197; the next sum is 215, which crosses 200, so the
+The `test_constant_input_periodic` cocotb test with a constant input of 30. This capture is from the original
+single-neuron RTL, which is why the sum is 9 bits wide; in the current design the sum is 11 bits and signed, and
+neuron 0 behaves identically with the ring off. Reading down: the leak (`V >> 4`, at least 1), the voltage after
+the leak, the sum, the clamped value, the stored voltage `v`, the refractory counter and the spike. `v` climbs 30, 59, 86 ... 197; the next sum is 215, which crosses 200, so the
 neuron fires, `v` resets to 0 and the counter runs 4, 3, 2, 1. The spike repeats every 13 clocks.
 `uo_out` shows `{v[7:1], spike}`, which is why 59 appears as 58.
 
@@ -229,7 +240,8 @@ choose between the pins and the self-test, neuron 0, and the MISR with its XOR i
 
 ![Vivado elaborated schematic, inputs and self-test](images/vivado_rtl_inputs_bist.webp)
 
-Right half: the four amplitude-level multiplexers of the self-test stimulus, the kick multiplexers and adders for
+Right half: three of the four amplitude-level multiplexers of the self-test stimulus (the fourth is in the left
+half), the kick multiplexers and adders for
 neurons 1 to 3, the output page multiplexers, and the reset logic that clears the neurons on entering and leaving
 the self-test.
 
@@ -245,8 +257,9 @@ images/     README figures, the script that generates them from the golden model
 info.yaml   Tiny Tapeout project metadata and pinout
 ```
 
-The SVG figures are generated, not drawn: `python images/make_figures.py` rebuilds them from the same models the
-tests use. The `.webp` images are screenshots from GTKWave and Vivado.
+The SVG figures are generated, not drawn: `python images/make_figures.py` rebuilds them. The waveform, ring and
+self-test figures come from the same models the tests use; the utilization and fault-coverage charts plot the
+measured numbers quoted in this README. The `.webp` images are screenshots from the GDS viewer, GTKWave and Vivado.
 
 ## About
 

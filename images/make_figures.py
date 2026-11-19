@@ -183,8 +183,9 @@ FIGURES = {
     "fault_coverage.svg": lambda: bars(
         "Self-test fault coverage, before and after", "Share of testable single faults that make the chip report FAIL "
         "(independent review, 193 faults).",
-        [("First self-test", "130 of 171 detected", 76.0, "76%", "#9aa5b1"),
-         ("Improved self-test", "174 of 175 detected", 99.4, "99.4%", ACCENT)], "%", 100),
+        [("First self-test", "130 of 172 detected", 75.6, "76%", "#9aa5b1"),
+         ("Reworked", "174 of 175 detected", 99.4, "99.4%", "#9aa5b1"),
+         ("+ reset on exit", "174 of 174 detected", 100.0, "100%", ACCENT)], "%", 100),
 }
 
 if __name__ == "__main__":

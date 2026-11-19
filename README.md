@@ -202,18 +202,51 @@ limit. Details are in [`docs/devlog/2026-11-16-timing-and-slew.md`](docs/devlog/
 
 Not yet done: the fabricated chip has not been tested, because it has not been manufactured.
 
+## The design in the tools
+
+### Simulation waveform (Icarus Verilog, viewed in GTKWave)
+
+Neuron 0 with a constant input of 30, from the `test_constant_input_periodic` cocotb test. Reading down: the leak
+(`V >> 4`, at least 1), the voltage after the leak, the 9-bit sum, the clamped value, the stored voltage `v`, the
+refractory counter and the spike. `v` climbs 30, 59, 86 ... 197; the next sum is 215, which crosses 200, so the
+neuron fires, `v` resets to 0 and the counter runs 4, 3, 2, 1. The spike repeats every 13 clocks.
+`uo_out` shows `{v[7:1], spike}`, which is why 59 appears as 58.
+
+![GTKWave waveform of neuron 0](images/gtkwave_neuron.webp)
+
+### Elaborated RTL (Vivado)
+
+The Verilog as Vivado elaborates it into generic blocks: adders, comparators, multiplexers and registers. This is
+only a view of the structure; the chip itself is synthesized by Yosys into SkyWater 130 nm cells.
+
+The whole top level. The four blue boxes are the `lif_neuron` instances; the three yellow register stacks are the
+LFSR, the signature register (MISR) and the self-test counter.
+
+![Vivado elaborated schematic, whole design](images/vivado_rtl_full.webp)
+
+Left half: the pins come in on the left, the LFSR and its feedback XORs, the weight and mode multiplexers that
+choose between the pins and the self-test, neuron 0, and the MISR with its XOR input network.
+
+![Vivado elaborated schematic, inputs and self-test](images/vivado_rtl_inputs_bist.webp)
+
+Right half: the four amplitude-level multiplexers of the self-test stimulus, the kick multiplexers and adders for
+neurons 1 to 3, the output page multiplexers, and the reset logic that clears the neurons on entering and leaving
+the self-test.
+
+![Vivado elaborated schematic, stimulus, neurons 1 to 3 and outputs](images/vivado_rtl_neurons_outputs.webp)
+
 ## Repository layout
 
 ```
 src/        Verilog source and LibreLane config
 test/       cocotb tests, golden models, fault simulator
 docs/       Datasheet (info.md) and development log (devlog/)
-images/     README figures and the script that generates them from the golden models
+images/     README figures, the script that generates them from the golden models, and tool screenshots
 info.yaml   Tiny Tapeout project metadata and pinout
 ```
 
-The figures are generated, not drawn: `python images/make_figures.py` rebuilds them from the same models the
-tests use.
+The SVG figures are generated, not drawn: `python images/make_figures.py` rebuilds them from the same models the
+tests use. The `.webp` images are screenshots from GTKWave and Vivado.
 
 ## About
 
